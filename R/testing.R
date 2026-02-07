@@ -102,7 +102,7 @@ update_sigma = function() {
   )
 }
 
-system.time({mcmc_test1 = mcmc_run(
+system.time({mcmc_test = mcmc_run_internal(
   data_list = data_list,
   const_list = const_list,
   init_list = init_list,
@@ -112,28 +112,60 @@ system.time({mcmc_test1 = mcmc_run(
     'beta' = update_beta,
     'sig' = update_sigma
   ),
-  adaptive = TRUE,
   save_names = c('beta','sigma'),
-  goal_ess = 400,
-  min_burn = 1000
-)})
-
-system.time({mcmc_test2 = mcmc_run(
-  data_list = data_list,
-  const_list = const_list,
-  init_list = init_list,
-  prior_pars = prior_pars,
-  prop_sd = prop_sd,
-  update_functions = list(
-    'beta' = update_beta,
-    'sig' = update_sigma
-  ),
-  adaptive = FALSE,
-  save_names = c('beta','sigma'),
-  burnin = 5000,
+  n_burn = 5000,
   n_iter = 1e5,
   thin = 2
 )})
+
+system.time({mcmc_test1 = mcmc_run_internal_alt(
+  data_list = data_list,
+  const_list = const_list,
+  init_list = init_list,
+  prior_pars = prior_pars,
+  prop_sd = prop_sd,
+  update_functions = list(
+    'beta' = update_beta,
+    'sig' = update_sigma
+  ),
+  save_names = c('beta','sigma'),
+  n_burn = 5000,
+  n_iter = 1e5,
+  thin = 2
+)})
+
+# system.time({mcmc_test1 = mcmc_run(
+#   data_list = data_list,
+#   const_list = const_list,
+#   init_list = init_list,
+#   prior_pars = prior_pars,
+#   prop_sd = prop_sd,
+#   update_functions = list(
+#     'beta' = update_beta,
+#     'sig' = update_sigma
+#   ),
+#   adaptive = TRUE,
+#   save_names = c('beta','sigma'),
+#   goal_ess = 400,
+#   min_burn = 1000
+# )})
+
+# system.time({mcmc_test2 = mcmc_run(
+#   data_list = data_list,
+#   const_list = const_list,
+#   init_list = init_list,
+#   prior_pars = prior_pars,
+#   prop_sd = prop_sd,
+#   update_functions = list(
+#     'beta' = update_beta,
+#     'sig' = update_sigma
+#   ),
+#   adaptive = FALSE,
+#   save_names = c('beta','sigma'),
+#   burnin = 5000,
+#   n_iter = 1e5,
+#   thin = 2
+# )})
 
 
 ##########

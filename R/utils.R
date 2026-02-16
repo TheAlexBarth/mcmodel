@@ -52,7 +52,11 @@ no_adapt = function(term, acc_counter, prop_sd, interval_length) {
 #' @keywords internal
 trim_chain = function(save_obj, trim_point) {
     for(param in names(save_obj)) {
-       save_obj[[param]] = gafa(save_obj[[param]], 1:trim_point)
+        if(length(dim(save_obj[[param]])) != 2) {
+           save_obj[[param]] = gafa(save_obj[[param]], 1:trim_point)
+        } else {
+            save_obj[[param]] = save_obj[[param]][1:trim_point,]
+        }
     }
     return(save_obj)
 }
@@ -104,6 +108,9 @@ geweke_check = function(chain) {
     latter_half = chain[round(length(chain)*0.5):length(chain)]
     if(length(first_quant) < 10 | length(latter_half) < 10) {
         return(FALSE) # insufficient chain lengths
+    }
+    if(var(first_quant) == 0 | var(latter_half) == 0) {
+        return(FALSE)
     }
     p = t.test(first_quant, latter_half)$p.value
     if(p > 0.05) {

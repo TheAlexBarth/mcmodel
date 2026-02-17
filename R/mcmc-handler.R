@@ -49,7 +49,7 @@ mcmc_run = function(
     init_generator = NULL,
     prior_pars,
     update_functions,
-    adaptive = FALSE,
+    burn_adapt = FALSE,
     save_names = NULL,
     prop_sd = NULL,
     derv_quants = NULL,
@@ -59,6 +59,9 @@ mcmc_run = function(
     seeds = NULL,
     adapt_tuner = adapt_tuner_double_exp,
     chain_check = geweke_check,
+    log_dir = '.',
+    log_files = TRUE,
+    delete_logs = TRUE,
     ...
 ) {
     dots = list(...)
@@ -110,27 +113,93 @@ mcmc_run = function(
 
         #region \- worker function --------------------------
         run_chain = function(chain_id) {
-            do.call(
-                mcmc_run_internal,
-                c(
-                    list(        
-                        data_list = data_list,
-                        const_list = const_list,
-                        init_list = init_list,
-                        prior_pars = prior_pars,
-                        update_functions = update_functions,
-                        adaptive = adaptive,
-                        save_names = save_names,
-                        prop_sd = prop_sd,
-                        derv_quants = derv_quants,
-                        derived_functions = derived_functions,
-                        adapt_tuner = adapt_tuner,
-                        chain_check = chain_check
-                    ),
-                    dots
+            if(log_files) {
+                log_dir = file.path(log_dir, 'logs')
+                if(!dir.exists(log_dir)) {
+                    dir.create(log_dir, recursive = TRUE)
+                }
+                log_file = file.path(
+                    log_dir, paste0(chain_id,".log")
                 )
+                zz = file(log_file, open = 'wt')
+                sink(zz)
+                sink(zz, type = "message")
+            }
+            mcmodel:::mcmc_run_internal(
+                data_list = data_list,
+                const_list = const_list,
+                init_list = init_lists[[chain_id]],
+                prior_pars = prior_pars,
+                update_functions = update_functions,
+                burn_adapt = burn_adapt,
+                save_names = save_names,
+                prop_sd = prop_sd,
+                derv_quants = derv_quants,
+                derived_functions = derived_functions,
+                adapt_tuner = adapt_tuner,
+                chain_check = chain_check,
+                ...
+            )
+            on.exit(
+                {
+                    if(!is.null(log_file)) {
+                        sink(type = 'message')
+                        sink()
+                        close(zz)
+
+                        if(delete_logs) {
+                            file.remove(log_file)
+                        }
+                    }
+                },
+                add = TRUE
             )
         }
+
+        run_chain = function(chain_id) {
+            if(log_files) {
+                log_dir = file.path(log_dir, 'logs')
+                if(!dir.exists(log_dir)) {
+                    dir.create(log_dir, recursive = TRUE)
+                }
+                log_file = file.path(
+                    log_dir, paste0(chain_id,".log")
+                )
+                zz = file(log_file, open = 'wt')
+                sink(zz)
+                sink(zz, type = "message")
+            }
+            worker_out = mcmodel:::mcmc_run_internal(
+                data_list = data_list,
+                const_list = const_list,
+                init_list = init_lists[[chain_id]],
+                prior_pars = prior_pars,
+                update_functions = update_functions,
+                burn_adapt = burn_adapt,
+                save_names = save_names,
+                prop_sd = prop_sd,
+                derv_quants = derv_quants,
+                derived_functions = derived_functions,
+                adapt_tuner = adapt_tuner,
+                chain_check = chain_check
+            )
+            on.exit(
+                {
+                    if(!is.null(log_file)) {
+                        sink(type = 'message')
+                        sink()
+                        close(zz)
+
+                        if(delete_logs) {
+                            file.remove(log_file)
+                        }
+                    }
+                },
+                add = TRUE
+            )
+            return(worker_out)
+        }
+
 
         chain_res = future.apply::future_lapply(
             X = seq_len(n_chains),
@@ -138,7 +207,15 @@ mcmc_run = function(
             future.seed = if (is.null(seeds)) TRUE else seeds
         )
 
-        # need to add post-chain processing here
+        #region \- post-loop formatting -------------
+        # get samples
+        chain_samples = chain_res |> lapply('[[', 'samples')
+        out_samples = list()
+        for(param in save_names) {
+            out_samples[[param]] = lapply(chain_samples, '[[', param)
+        }
+
+        
 
     } else {
         if(!is.null(seeds)) set.seed(seeds[1])
@@ -151,7 +228,7 @@ mcmc_run = function(
                     init_list = init_list,
                     prior_pars = prior_pars,
                     update_functions = update_functions,
-                    adaptive = adaptive,
+                    burn_adapt = burn_adapt,
                     save_names = save_names,
                     prop_sd = prop_sd,
                     derv_quants = derv_quants,
@@ -166,3 +243,10 @@ mcmc_run = function(
     }
 }
 
+########
+# Formatting
+##########
+
+psrf_from_arr = function(chain_list, psrf_fx = gelman_rubin_psrf) {
+    # need to format this into a bigger fx
+}

@@ -143,6 +143,7 @@ mcmc_run_internal = function(
                         pdim = dim(run_save[[param]])
                         pdx = rep(list(TRUE), length(pdim)-1L)
                         run_save[[param]][1:min_burn, ] = run_save[[param]][2:(min_burn+1), ]
+                        run_save[[param]][min_burn, ] = as.vector(get(param))
                     }
                     if(iter %% prop_adapt == 0) {
                         check_obj = trim_chain(run_save, min_burn)

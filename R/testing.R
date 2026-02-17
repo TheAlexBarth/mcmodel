@@ -102,6 +102,23 @@ update_sigma = function() {
   )
 }
 
+# mcmc_test = mcmc_run(
+#   data_list = data_list,
+#   const_list = const_list,
+#   init_list = init_list,
+#   prior_pars = prior_pars,
+#   prop_sd = prop_sd,
+#   update_functions = list(
+#     'beta' = update_beta,
+#     'sig' = update_sigma
+#   ),
+#   burn_adapt = TRUE,
+#   save_names = c('beta','sigma'),
+#   n_bur = 5000,
+#   n_iter = 1e5,
+#   thin = TRUE
+# )
+
 
 # system.time({mcmc_test1 = mcmc_run_internal(
 #   data_list = data_list,

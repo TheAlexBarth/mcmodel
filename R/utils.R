@@ -62,6 +62,14 @@ trim_chain = function(save_obj, trim_point) {
 }
 
 
+###############
+#MARK: Multi-Chain Function
+###############
+get_samples = function(chain_res) {
+    chain_res |> 
+        sapply('[[', 'samples')
+}
+
 
 ##################
 #MARK: Assess Burn
@@ -183,4 +191,24 @@ fafa = function(arr) {
         arr = matrix(arr, nrow = d[1])
     }
     return(as.matrix(arr))
+}
+
+
+############
+# MARK: PSRF 
+############
+
+gelman_rubin_psrf = function(chain_list) {
+    ns = sapply(chain_list, length) |>
+        unique()
+
+    if(length(ns) > 1) stop('Gelman-Rubin Stat requires all chains equal length')
+    chain_means = sapply(chain_list, mean)
+    mean_of_mean = mean(chain_means)
+    B = var(chain_means)
+    W = mean(sapply(chain_list, var))
+    
+    Rhat = ((ns-1)/ns * W + (1/ns)*B) / W
+
+    return(Rhat)
 }

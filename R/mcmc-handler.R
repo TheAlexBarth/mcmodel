@@ -112,7 +112,22 @@ mcmc_run = function(
         stop('Parallel Chains not yet implemented')
 
         #region \- worker function --------------------------
-        run_chain = function(chain_id) {
+        run_chain = function(
+            chain_id,
+            data_list,
+            const_list,
+            init_list,
+            prior_pars,
+            update_functions,
+            burn_adapt,
+            save_names,
+            prop_sd,
+            derv_quants,
+            derived_functions,
+            adapt_tuner,
+            chain_check,
+            extra_args = dots
+        ) {
             if(log_files) {
                 log_dir = file.path(log_dir, 'logs')
                 if(!dir.exists(log_dir)) {
@@ -125,10 +140,10 @@ mcmc_run = function(
                 sink(zz)
                 sink(zz, type = "message")
             }
-            mcmodel:::mcmc_run_internal(
+            base_args = list(
                 data_list = data_list,
                 const_list = const_list,
-                init_list = init_lists[[chain_id]],
+                init_list = init_list, # note this is a worker-list and will be passed from lists
                 prior_pars = prior_pars,
                 update_functions = update_functions,
                 burn_adapt = burn_adapt,
@@ -138,8 +153,10 @@ mcmc_run = function(
                 derived_functions = derived_functions,
                 adapt_tuner = adapt_tuner,
                 chain_check = chain_check,
-                ...
             )
+            all_args = c(base_args, extra_args)
+            worker_out = do.call(mcmodel:::mcmc_run_internal, all_args)
+            return(worker_out)
             on.exit(
                 {
                     if(!is.null(log_file)) {
@@ -156,7 +173,44 @@ mcmc_run = function(
             )
         }
 
-        run_chain = function(chain_id) {
+        chain_res = future.apply::future_lapply(
+            X = seq_len(n_chains),
+            FUN = function(chain_id) {
+                run_chain(
+                    chain_id = chain_id,
+                    data_list = data_list,
+                    const_list = const_list,
+                    init_list = init_lists[[chain_id]],
+                    prior_pars = prior_pars,
+                    update_functions = update_functions,
+                    burn_adapt = burn_adapt,
+                    save_names = save_names,
+                    prop_sd = prop_sd,
+                    derv_quants = derv_quants,
+                    derived_functions = derived_functions,
+                    adapt_tuner = adapt_tuner,
+                    chain_check = chain_check,
+                    extra_args = dots
+                )
+            },
+            future.seed = if (is.null(seeds)) TRUE else seeds
+        )
+
+        run_chain = function(
+            chain_id,
+            data_list,
+            const_list,
+            init_list,
+            prior_pars,
+            update_functions,
+            burn_adapt,
+            save_names,
+            prop_sd,
+            derv_quants,
+            derived_functions,
+            adapt_tuner,
+            chain_check
+        ) {
             if(log_files) {
                 log_dir = file.path(log_dir, 'logs')
                 if(!dir.exists(log_dir)) {
@@ -169,10 +223,10 @@ mcmc_run = function(
                 sink(zz)
                 sink(zz, type = "message")
             }
-            worker_out = mcmodel:::mcmc_run_internal(
+            base_args = list(
                 data_list = data_list,
                 const_list = const_list,
-                init_list = init_lists[[chain_id]],
+                init_list = init_list, # note this is a worker-list and will be passed from lists
                 prior_pars = prior_pars,
                 update_functions = update_functions,
                 burn_adapt = burn_adapt,
@@ -197,15 +251,51 @@ mcmc_run = function(
                 },
                 add = TRUE
             )
+            all_args = c(base_args)
+            worker_out = do.call(mcmodel:::mcmc_run_internal, all_args)
             return(worker_out)
         }
 
-
         chain_res = future.apply::future_lapply(
             X = seq_len(n_chains),
-            FUN = run_chain,
-            future.seed = if (is.null(seeds)) TRUE else seeds
+            FUN = function(chain_id) {
+                run_chain(
+                    chain_id = chain_id,
+                    data_list = data_list,
+                    const_list = const_list,
+                    init_list = init_lists[[chain_id]],
+                    prior_pars = prior_pars,
+                    update_functions = update_functions,
+                    burn_adapt = burn_adapt,
+                    save_names = save_names,
+                    prop_sd = prop_sd,
+                    derv_quants = derv_quants,
+                    derived_functions = derived_functions,
+                    adapt_tuner = adapt_tuner,
+                    chain_check = chain_check
+                )
+            },
+            future.seed = if (is.null(seeds)) TRUE else seeds,
+            future.globals = list(
+                run_chain = run_chain,
+                data_list = data_list,
+                const_list = const_list,
+                init_lists = init_lists,
+                prior_pars = prior_pars,
+                update_functions = update_functions,
+                burn_adapt = burn_adapt,
+                save_names = save_names,
+                prop_sd = prop_sd,
+                derv_quants = derv_quants,
+                derived_functions = derived_functions,
+                adapt_tuner = adapt_tuner,
+                chain_check = chain_check,
+                log_files = log_files,
+                log_dir = log_dir,
+                delete_logs = delete_logs
+            )
         )
+
 
         #region \- post-loop formatting -------------
         # get samples
@@ -249,4 +339,20 @@ mcmc_run = function(
 
 psrf_from_arr = function(chain_list, psrf_fx = gelman_rubin_psrf) {
     # need to format this into a bigger fx
+}
+
+#' Truncate to the shortest chain length
+#' 
+#' for multi-chain runs, chains must be similar length
+#' in order to calculate Rhat.
+#' 
+#' 
+auto_trucate = function(chain_res) {
+    min_length = chain_res |>
+        lapply('[[', 'info') |>
+        sapply('[[', 'size') |>
+        min()
+
+    #could use trim chain here
+    
 }

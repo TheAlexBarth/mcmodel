@@ -102,6 +102,26 @@ update_sigma = function() {
   )
 }
 
+update_functions = list(
+    'beta' = update_beta,
+    'sig' = update_sigma
+  )
+init_generator = NULL
+    burn_adapt = TRUE
+  save_names = c('beta','sigma')
+  n_bur = 5000
+  n_iter = 1e5
+  thin = 2
+      adapt_tuner = adapt_tuner_double_exp
+    chain_check = geweke_check
+    log_dir = '.'
+    log_files = TRUE
+    delete_logs = TRUE
+    derv_quants = NULL
+    derived_functions = NULL
+n_chains = 3
+n_cores = NULL
+seeds = NULL
 # mcmc_test = mcmc_run(
 #   data_list = data_list,
 #   const_list = const_list,

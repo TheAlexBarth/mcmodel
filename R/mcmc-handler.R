@@ -40,6 +40,8 @@
 #'  chains = 1
 #' )
 #' }
+#' 
+#' @importFrom abind abind
 #'
 #' @export
 mcmc_run = function(
@@ -109,7 +111,7 @@ mcmc_run = function(
             future::plan(future::multisession, workers = n_cores)
         }
         message("Running ", n_chains, " chains using future with ", n_cores, " workers....")
-        stop('Parallel Chains not yet implemented')
+        #endregion -----------------------------------------------------------
 
         #region \- worker function --------------------------
         run_chain = function(
@@ -152,11 +154,8 @@ mcmc_run = function(
                 derv_quants = derv_quants,
                 derived_functions = derived_functions,
                 adapt_tuner = adapt_tuner,
-                chain_check = chain_check,
+                chain_check = chain_check
             )
-            all_args = c(base_args, extra_args)
-            worker_out = do.call(mcmodel:::mcmc_run_internal, all_args)
-            return(worker_out)
             on.exit(
                 {
                     if(!is.null(log_file)) {
@@ -171,6 +170,10 @@ mcmc_run = function(
                 },
                 add = TRUE
             )
+            all_args = c(base_args, extra_args)
+            worker_out = do.call(mcmodel:::mcmc_run_internal, all_args)
+            return(worker_out)
+      
         }
 
         chain_res = future.apply::future_lapply(
@@ -193,88 +196,6 @@ mcmc_run = function(
                     extra_args = dots
                 )
             },
-            future.seed = if (is.null(seeds)) TRUE else seeds
-        )
-
-        run_chain = function(
-            chain_id,
-            data_list,
-            const_list,
-            init_list,
-            prior_pars,
-            update_functions,
-            burn_adapt,
-            save_names,
-            prop_sd,
-            derv_quants,
-            derived_functions,
-            adapt_tuner,
-            chain_check
-        ) {
-            if(log_files) {
-                log_dir = file.path(log_dir, 'logs')
-                if(!dir.exists(log_dir)) {
-                    dir.create(log_dir, recursive = TRUE)
-                }
-                log_file = file.path(
-                    log_dir, paste0(chain_id,".log")
-                )
-                zz = file(log_file, open = 'wt')
-                sink(zz)
-                sink(zz, type = "message")
-            }
-            base_args = list(
-                data_list = data_list,
-                const_list = const_list,
-                init_list = init_list, # note this is a worker-list and will be passed from lists
-                prior_pars = prior_pars,
-                update_functions = update_functions,
-                burn_adapt = burn_adapt,
-                save_names = save_names,
-                prop_sd = prop_sd,
-                derv_quants = derv_quants,
-                derived_functions = derived_functions,
-                adapt_tuner = adapt_tuner,
-                chain_check = chain_check
-            )
-            on.exit(
-                {
-                    if(!is.null(log_file)) {
-                        sink(type = 'message')
-                        sink()
-                        close(zz)
-
-                        if(delete_logs) {
-                            file.remove(log_file)
-                        }
-                    }
-                },
-                add = TRUE
-            )
-            all_args = c(base_args)
-            worker_out = do.call(mcmodel:::mcmc_run_internal, all_args)
-            return(worker_out)
-        }
-
-        chain_res = future.apply::future_lapply(
-            X = seq_len(n_chains),
-            FUN = function(chain_id) {
-                run_chain(
-                    chain_id = chain_id,
-                    data_list = data_list,
-                    const_list = const_list,
-                    init_list = init_lists[[chain_id]],
-                    prior_pars = prior_pars,
-                    update_functions = update_functions,
-                    burn_adapt = burn_adapt,
-                    save_names = save_names,
-                    prop_sd = prop_sd,
-                    derv_quants = derv_quants,
-                    derived_functions = derived_functions,
-                    adapt_tuner = adapt_tuner,
-                    chain_check = chain_check
-                )
-            },
             future.seed = if (is.null(seeds)) TRUE else seeds,
             future.globals = list(
                 run_chain = run_chain,
@@ -292,22 +213,53 @@ mcmc_run = function(
                 chain_check = chain_check,
                 log_files = log_files,
                 log_dir = log_dir,
-                delete_logs = delete_logs
+                delete_logs = delete_logs,
+                dots = dots
             )
         )
+        #endregion -----------------------------------------------------------------
 
+        # could build optional to not run in parallel
 
         #region \- post-loop formatting -------------
         # get samples
-        chain_samples = chain_res |> lapply('[[', 'samples')
-        out_samples = list()
-        for(param in save_names) {
-            out_samples[[param]] = lapply(chain_samples, '[[', param)
-        }
+        
+        min_length = chain_res |>
+            lapply('[[', 'info') |>
+            sapply('[[', 'size') |>
+            min()
 
+        chain_samples = truncate_samples(chain_res, min_length)
+
+        # need to flip samples to vector form
+        chain_samples = lapply(
+            save_names,
+            function(par) lapply(chain_samples, '[[', par)
+        )
+        names(chain_samples) = save_names
+        split_r = lapply(chain_samples, vehtari_split_psrf)
+
+        combn_samples = lapply(
+            chain_samples,
+            abind,
+            along = 1
+        )
+        out = list(
+            samples = combn_samples,
+            info = list(
+                "n_chains" = n_chains,
+                'rhat' = split_r,
+                "size" = min_length*n_chains,
+                "ESS" = sapply(combn_samples, function(x) effectiveSize(fafa(x))),
+                "chain_idx" = rep(1:n_chains, each = min_length)
+            )
+        )
+
+        #endregion ------------------------------------
         
 
     } else {
+        #MARK: Single Run
         if(!is.null(seeds)) set.seed(seeds[1])
         out = do.call(
             mcmc_run_internal,
@@ -329,8 +281,8 @@ mcmc_run = function(
                 dots
             )
         )
-        return(out)
     }
+    return(out)
 }
 
 ########
@@ -344,15 +296,16 @@ psrf_from_arr = function(chain_list, psrf_fx = gelman_rubin_psrf) {
 #' Truncate to the shortest chain length
 #' 
 #' for multi-chain runs, chains must be similar length
-#' in order to calculate Rhat.
+#' in order to calculate Rhat. This discards some small number of 
+#' points. Future extensions of this package may consider tracking/warning
+#' if chains are substantially different lengths.
 #' 
 #' 
-auto_trucate = function(chain_res) {
-    min_length = chain_res |>
-        lapply('[[', 'info') |>
-        sapply('[[', 'size') |>
-        min()
-
+truncate_samples = function(chain_res, min_length) {
     #could use trim chain here
-    
+    trunc_samples = chain_res |>
+        lapply('[[', 'samples') |>
+        lapply(trim_chain, min_length, front = FALSE)
+
+    return(trunc_samples)
 }

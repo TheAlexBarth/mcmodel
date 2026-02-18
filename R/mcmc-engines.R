@@ -230,6 +230,9 @@ mcmc_run_internal = function(
 #' 
 #' @return formatted output for mcmc engines
 #' @keywords internal
+#' notes to self 
+#' - remove drop front in non-adaptive stopping.
+#' - add option for info calculation to not run if done in multi-chain cases.
 format_output = function(save_item, derv_save, drop_front = FALSE) {
     #chop of the pre-thinned items
     if(!is.null(derv_save)){

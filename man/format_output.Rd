@@ -4,7 +4,7 @@
 \alias{format_output}
 \title{format outputs for mcmc algos}
 \usage{
-format_output(save_item, derv_save, drop_front = TRUE)
+format_output(save_item, derv_save, drop_front = FALSE)
 }
 \arguments{
 \item{save_item}{save object as a list with named parameters}
@@ -17,4 +17,25 @@ formatted output for mcmc engines
 \description{
 format outputs for mcmc algos
 }
+\keyword{-}
+\keyword{add}
+\keyword{calculation}
+\keyword{cases.}
+\keyword{done}
+\keyword{drop}
+\keyword{for}
+\keyword{front}
+\keyword{if}
+\keyword{in}
+\keyword{info}
 \keyword{internal}
+\keyword{multi-chain}
+\keyword{non-adaptive}
+\keyword{not}
+\keyword{notes}
+\keyword{option}
+\keyword{remove}
+\keyword{run}
+\keyword{self}
+\keyword{stopping.}
+\keyword{to}

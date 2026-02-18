@@ -47,19 +47,32 @@ no_adapt = function(term, acc_counter, prop_sd, interval_length) {
 #' 
 #' @param save_obj a list of paramters that are saved accross iterations
 #' @param trim_point single index integer at which a trim should extend.
+#' @param front Logical to keep front DEFAULT TRUE.
 #' 
 #' @return a list with the trimmed save object
 #' @keywords internal
-trim_chain = function(save_obj, trim_point) {
+trim_chain = function(save_obj, trim_point, front = TRUE) {
+    
     for(param in names(save_obj)) {
-        if(length(dim(save_obj[[param]])) != 2) {
-           save_obj[[param]] = gafa(save_obj[[param]], 1:trim_point)
+        max_len = dim(save_obj[[param]])[1]
+        if(is.null(max_len)) max_len = length(save_obj[[param]])
+        if(front) {
+            from = 1
+            to = trim_point
         } else {
-            save_obj[[param]] = save_obj[[param]][1:trim_point,]
+            from = max_len-trim_point+1
+            to = max_len
+        }
+        if(length(dim(save_obj[[param]])) != 2) {
+           save_obj[[param]] = gafa(save_obj[[param]], from:to)
+        } else {
+            save_obj[[param]] = save_obj[[param]][from:to,]
         }
     }
     return(save_obj)
 }
+
+
 
 
 ###############
@@ -211,4 +224,61 @@ gelman_rubin_psrf = function(chain_list) {
     Rhat = ((ns-1)/ns * W + (1/ns)*B) / W
 
     return(Rhat)
+}
+
+#' Split Chain, Rank Normalized R-hat
+#' 
+#' Based on Vehtari et al 2021; 10.1214/20-BA1221
+#' this function only takes either a list or vector for ONE CHAIN
+#' The function can take any size array but will return a flattened value for each
+#' chain along the first axis.
+#' 
+vehtari_split_psrf = function(chains){
+    #need to check dimension sizing
+    if(is.list(chains)) {
+        dims = unique(sapply(chains, function(x) length(dim(x))))
+        chains = lapply(chains, fafa)
+        mat_len = unique(sapply(chains, function(x) dim(x)[2]))
+        chains = lapply(1:mat_len, function(x) lapply(chains, '[', ,x))
+    } else {
+        chains = fafa(chains)
+        dims = dim(chains)
+        mat_len = dim(chains)[2]
+        chains = lapply(1:mat_len, function(x) chains[,x])
+    }
+
+    split_r = sapply(1:mat_len, function(x) vsp_internal(chains[[x]], rank_norm = TRUE))
+    return(split_r)
+}
+
+#'
+vsp_internal = function(chains, rank_norm) {
+    if(is.list(chains)) {
+        split_chains = chains |> lapply(
+            function(x) split(x, cut(seq_along(x), 2, labels = FALSE))
+        ) |>
+        do.call(what = c,)
+    } else {
+        split_chains = split(chains, cut(seq_along(chains), 2, labels = FALSE))
+    }
+
+    M = length(split_chains)
+    N = unique(sapply(split_chains, length))
+    if(rank_norm) {
+        r = rank(unlist(split_chains, use.names = FALSE))
+        z = qnorm((r-(3/8))/(N*M + 1/4))
+        split_chains = split(z, cut(seq_along(z), M, labels = FALSE))
+    }
+    # naming references chain-indexing
+    dot_m = sapply(split_chains, mean)
+    dot_dot = mean(dot_m)
+    B = (N/(M-1)) * sum((dot_m - dot_dot)^2) #between var
+    
+    s_sq_m = sapply(split_chains, function(x) (1/(N-1))*sum((x-mean(x))^2))
+    W = (1/M) * sum(s_sq_m) #within var
+
+    varhat = ((N-1)/N)*W + B/N
+
+    split_r = sqrt(varhat / W)
+    return(split_r)
 }

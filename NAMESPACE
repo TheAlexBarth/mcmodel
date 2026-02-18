@@ -2,10 +2,5 @@
 
 export(mcmc_run)
 export(plot_post_chain)
-importFrom(coda,effectiveSize)
+importFrom(abind,abind)
 importFrom(graphics,abline)
-importFrom(stats,acf)
-importFrom(stats,quantile)
-importFrom(stats,t.test)
-importFrom(utils,setTxtProgressBar)
-importFrom(utils,txtProgressBar)

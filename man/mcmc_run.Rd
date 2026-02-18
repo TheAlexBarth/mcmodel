@@ -11,7 +11,7 @@ mcmc_run(
   init_generator = NULL,
   prior_pars,
   update_functions,
-  adaptive = FALSE,
+  burn_adapt = FALSE,
   save_names = NULL,
   prop_sd = NULL,
   derv_quants = NULL,
@@ -21,6 +21,9 @@ mcmc_run(
   seeds = NULL,
   adapt_tuner = adapt_tuner_double_exp,
   chain_check = geweke_check,
+  log_dir = ".",
+  log_files = TRUE,
+  delete_logs = TRUE,
   ...
 )
 }
@@ -36,8 +39,6 @@ mcmc_run(
 \item{prior_pars}{list of prior values used in update functions}
 
 \item{update_functions}{a list of update functions used in blocks for MCMC application}
-
-\item{adaptive}{logical - if true adaptive burnin and thinning will be used. Adaptive tunning occurs in both unless adapt_tuner=no_adapt}
 
 \item{save_names}{(optional) list of parameters in init_list to save out. Defaults to init_list}
 
@@ -58,6 +59,8 @@ mcmc_run(
 \item{chain_check}{function for assess_burnin if run in adaptive burnin.}
 
 \item{...}{arguments passed to the internal MCMC engines, see}
+
+\item{adaptive}{logical - if true adaptive burnin and thinning will be used. Adaptive tunning occurs in both unless adapt_tuner=no_adapt}
 }
 \value{
 A list of MCMC output with two items;

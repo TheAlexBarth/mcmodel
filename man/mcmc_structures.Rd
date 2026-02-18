@@ -7,7 +7,8 @@
 \description{
 Extra details regarding the core arguments in
 \code{\link{mcmc_run}} construction. Examples here-in show a simple case of a GIBBS + MH sampler for
-a normal-normal sampler design.
+a normal regression model with two covariates and unknown mean. Additionally details are shown for
+simulating derived quantities with a bayesian p-value based on MSE.
 }
 \section{Details}{
 \subsection{\code{data_list}}{

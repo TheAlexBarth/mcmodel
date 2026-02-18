@@ -5,6 +5,7 @@
 # devtools::check()
 # devtools::load_all()
 
+#working - need to build documentation, summarize feature, fix plotting, fix single-run info printing, add split rhat.
 
 y = mtcars$mpg
 X = cbind(1, scale(mtcars$wt), scale(mtcars$hp)) # scaling is typically helpful
@@ -106,23 +107,15 @@ update_functions = list(
     'beta' = update_beta,
     'sig' = update_sigma
   )
-init_generator = NULL
-    burn_adapt = TRUE
-  save_names = c('beta','sigma')
-  n_bur = 5000
-  n_iter = 1e5
-  thin = 2
-      adapt_tuner = adapt_tuner_double_exp
-    chain_check = geweke_check
-    log_dir = '.'
-    log_files = TRUE
-    delete_logs = TRUE
-    derv_quants = NULL
-    derived_functions = NULL
-n_chains = 3
-n_cores = NULL
-seeds = NULL
-# mcmc_test = mcmc_run(
+
+init_generator = list(
+  'beta' = function(x) rnorm(length(x), x, 0.05),
+  'sigma' = function(x) rnorm(length(x), x, 0.5),
+  'mu' = function(x) x
+)
+
+
+# system.time({mcmc_test = mcmc_run(
 #   data_list = data_list,
 #   const_list = const_list,
 #   init_list = init_list,
@@ -134,10 +127,32 @@ seeds = NULL
 #   ),
 #   burn_adapt = TRUE,
 #   save_names = c('beta','sigma'),
-#   n_bur = 5000,
-#   n_iter = 1e5,
-#   thin = TRUE
-# )
+#   n_burn = 5000,
+#   n_iter = 5e4,
+#   thin = 2
+# )})
+
+system.time({
+  mcmc_test2 = mcmc_run(
+    data_list = data_list,
+    const_list = const_list,
+    init_list = init_list,
+    init_generator = init_generator,
+    prior_pars = prior_pars,
+    prop_sd = prop_sd,
+    update_functions = list(
+      'beta' = update_beta,
+      'sig' = update_sigma
+    ),
+    burn_adapt = TRUE,
+    save_names = c('beta','sigma'),
+    min_burn = 5000,
+    n_iter = 1e4,
+    n_chains = 20,
+    thin = 2
+  )
+})
+
 
 
 # system.time({mcmc_test1 = mcmc_run_internal(
@@ -164,3 +179,4 @@ seeds = NULL
 ########
 
 # plot_post_chain(mcmc_test$samples, 'beta')
+

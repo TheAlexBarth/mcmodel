@@ -1,17 +1,17 @@
 Package: mcmodel
-Title: A simple r-based framework for constructing MCMC algorithms with strong control over sampling.
-Version: 0.0.0.9000
+Title: A simple r-based framework for constructing MCMC algorithms with strong control over sampling
+Version: 0.1.0
 Authors@R: 
     person("Alex J.", "Barth", , "alex.barth.science@gmail.com", role = c("aut", "cre"))
 Description: A set of R tools to implement MCMC algorithms with Gibbs and Metropolis-Hastings samplers entirely in R. This provides useful adaptation approaches and customizable sampling/saving. Can support multiple chain parallel.
-License: `use_mit_license()`, `use_gpl3_license()` or friends to pick a
-    license
+License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.3.2
+RoxygenNote: 7.3.3
 Imports: 
-    utils,
     coda,
-    stats
+    future,
+    future.apply,
+    abind
 Depends: 
     R (>= 4.1.0)

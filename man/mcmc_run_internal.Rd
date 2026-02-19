@@ -9,17 +9,17 @@ mcmc_run_internal(
   const_list,
   init_list,
   prior_pars,
+  prop_sd,
   update_functions,
-  n_burn = 5000,
-  n_iter = 1e+05,
-  thin = 1,
+  save_names,
+  derv_quants,
+  derived_functions,
+  n_iter,
+  thin,
+  n_burn,
+  burn_adapt,
+  min_burn,
   prop_adapt = 100,
-  burn_adapt = FALSE,
-  min_burn = 1000,
-  prop_sd = NULL,
-  save_names = NULL,
-  derv_quants = NULL,
-  derived_functions = NULL,
   adapt_tuner = adapt_tuner_double_exp,
   chain_check = geweke_check
 )
@@ -29,15 +29,13 @@ mcmc_run_internal(
 
 \item{const_list}{list object with relevant indexing used in updates/derived fns}
 
-\item{init_list}{list object with ALL parameters used in update/derived, see \link{mcmc_structure}}
+\item{init_list}{list object with ALL parameters used in update/derived, see \link{mcmc_structures}}
 
 \item{prior_pars}{list of prior values used in update functions}
 
-\item{update_functions}{a list of update functions used in blocks for MCMC application}
-
-\item{n_burn}{length of burnin period if burn_adapt = FALSE, else minimum burnin}
-
 \item{prop_sd}{IF any Metropolis-Hastings algos are used with, prop_sd much be provided.}
+
+\item{update_functions}{a list of update functions used in blocks for MCMC application}
 
 \item{save_names}{(optional) list of parameters in init_list to save out. Defaults to init_list}
 
@@ -45,12 +43,26 @@ mcmc_run_internal(
 
 \item{derived_functions}{List of functions for computing derived quantities.}
 
-\item{adapt_tuner}{function for tuning prop_sd in MH applications}
+\item{n_iter}{integer for number of interations}
 
-\item{chain_check}{function for assess_burnin if run in adaptive burnin.}
+\item{thin}{integer for thinning interval. Default is 1.}
 
-\item{...}{additional args passed to SEE LINK}
+\item{n_burn}{integer for maximum burn-in length}
+
+\item{burn_adapt}{logical to decide to use adaptive burn-in procedure.}
+
+\item{min_burn}{integer used if burn_adapt=TRUE, how long minimum burn in needs to be}
+
+\item{prop_adapt}{integer interval for proposal adaptation. Default is 100}
+
+\item{adapt_tuner}{function for proposal adaptation. Default is \link{adapt_tuner_double_exp}. no_adapt is also a built-in option}
+
+\item{chain_check}{function to check chain convergence within adaptive burnin feaure.}
+}
+\value{
+list object with mcmc features
 }
 \description{
 Internal dispatch for a single chain run
 }
+\keyword{internal}

@@ -22,14 +22,12 @@
 #' but necessary for function runs (e.g., response and covariate data). List terms
 #' MUST match the variable names used in fuctions
 #' 
-#' 
 #' ##  `const_list`
 #' A list object with named terms used in indexing.
 #' 
-#' Note that functionally terms provided in either const_list or data_list can be interchangable
+#' Note that functionally terms provided in either const_list, data_list, or prior_pars can be interchangable
 #' the distinction is inspired by separating components of the model, as can be done in NIMBLE
 #' or similarly through STAN.
-#' 
 #' 
 #' ##  `init_list`
 #' A list with ALL model parameters or latent states (both stochastic and deterministic nodes) which
@@ -39,12 +37,147 @@
 #' If running multiple chains, you must provide an init_generator function which mutates 
 #' the centralized init_list. see below for details...
 #' 
+#' ## `init_generator`
+#' The init_generator needs to be a list of functions (typically easiest as anonyomous)
+#' which mutate the init_list parameters for mutliple chain runs. If left NULL, chains will have similar starting points
+#' 
+#' ## `prior_pars`
+#' list of parameters used in update functions which are corresponding to the parameter model (priors)
+#' 
 #' ## `prop_sd`
-#' A list of values to be used in proposal functions. Typically assumes a normal proposal distribution
-#' However theoritically possible to be used in an alternative approach.
+#' A list of values to be used in proposal functions. Typically assumes a normal proposal distribution for symmetric sampling
+#' However theoritically possible to be used in an alternative approach, but will need to be mindful that this can influence the proposal tuning algorithm
+#' 
+#' ## `update_functions`
+#' A list of functions (typically defined as named functions in workflow). Note each of these functions
+#' MUST have a similar layout where it returns a list with a "val" list and if MH a "acc" list. These lists
+#' must return objects that need to live in the global environment
+#' 
+#' ## `save_names`
+#' A character vector which includes items to trace. Note that unlike NIMBE which constructs the entire NODE map
+#' prior to compiling, this step is skipped (because we don't compile!). So some intermediate nodes (or uninterested ones)
+#' can just be ingored yet still updated. This is very useful for processing speeds
+#' 
+#' ## `derv_quants`
+#' A character vector for derived values to save (similar to save_names but corresponds to derived functions).
+#' Note the currently derived quantities can ONLY support single vector values (e.g., no matrices or arrays).
+#' Think these are best for in-algorithm diagnostics like Bayesian p-value or DIC (if tractable in model).
+#' 
+#' ## `derived_functions`
+#' A list of functions which can be used to calcualte derived values. Essentally the structure of these objects 
+#' should reflect update_functions, HOWEVER, they are only run after burnin. Note tha
+#' 
+#' 
+#' @examples
+#' 
+#' data_list  = list(
+#'    y = mtcars$mpg,
+#'    X = cbind(1, scale(mtcars$wt), scale(mtcars$hp))
+#' )
+#' 
+#' const_list = list(
+#'    K_x = ncol(data_list$X)
+#' )
+#'
+#' # needs initialization for model parameters
+#' # initialization can be informed by data to ensure 
+#' init_list = list(
+#'   beta = c(20, rep(0, ncol(data_list$X)-1)),
+#'   sigma = 6
+#' )
+#' init_list$mu = data_list$X %*% init_list$beta
+#' # need to specify priors
+#' # In this example:
+#' # [beta] = N(mu_beta, sd_beta)
+#' # [sigma^2] = IG(a_sig2, b_sig2)
+#' prior_pars = list(
+#'   mu_beta = c(10, 0, 0),
+#'   sd_beta = c(3, 2, 2),
+#'   a_sig2 = 2,
+#'   b_sig2 = 2
+#' )
+#' # MH update for beta and Gibbs of sigma
+#' # needs a prop_sd for beta
+#' prop_sd = list()
+#' prop_sd$beta = rep(1, const_list$K_x)
+#'
+#' # this is an individual-wise update function
+#' update_beta = function(prop_sd) {
+#'  # updates for MH steps require a "acc" object to feed back into the algo.
+#'  acc = rep(0, const_list$K_x)
+#'  # initilalze acc for return on HM
+#'  for(k in 1:K_x) {
+#'    # in this example, minimal changes to beta are introduced
+#'    # this is useful for large datasets to not recalc full matrix
+#'    betak_star = rnorm(1, mean = beta[k], sd = prop_sd$beta[k])
+#'    mu_star = mu + X[,k] * (betak_star - beta[k])
+#' 
+#'    mh_1 = sum(dnorm(y, mean = mu_star, sd = sigma, log = TRUE)) +
+#'      dnorm(betak_star, mu_beta[k], sd_beta[k], log = TRUE)
+#'
+#'    mh_2 = sum(dnorm(y, mean = mu, sd = sigma, log = TRUE)) +
+#'      dnorm(beta[k], mu_beta[k], sd_beta[k], log = TRUE)
+#'
+#'    # on update, etc
+#'    if(log(runif(1)) < (mh_1-mh_2)) {
+#'      beta[k] = betak_star
+#'      acc[k] = 1
+#'      mu = mu_star
+#'    }
+#'  }
+#'  return(
+#'    # the return structure of MH blocks MUST BE
+#'    # a list with a `val` list and `acc` list
+#'    list(
+#'      val = list(
+#'        # update to the global function environment
+#'        beta = beta,
+#'        mu = mu
+#'      ),
+#'      acc = list(
+#'        beta = acc
+#'      )
+#'    )
+#'  )
+#' }
+#' 
+#' # conjugate prior is inverse gamma
+#' # full conditional then  sigma^2 | a_sigma, b_sigma \propto IG(a+(n/2), b+0.5*SUM(y_i-mu_i))
+#' update_sigma = function() {
+#'  new_sig2 = 1/rgamma(1, a_sig2 + length(y)/2, b_sig2 + 0.5 * sum((y-mu)^2))
+#' return(
+#'    list(
+#'      val = list('sigma' = sqrt(new_sig2))
+#'    )
+#'  )
+#' }
+#'
+#' update_functions = list(
+#'    'beta' = update_beta,
+#'    'sig' = update_sigma
+#'  )
+#'
+#' init_generator = list(
+#'  'beta' = function(x) rnorm(length(x), x, 0.05),
+#'  'sigma' = function(x) rnorm(length(x), x, 0.5),
+#'  'mu' = function(x) x
+#' )
+#'
+#' # derived functions
+#' calc_pmse = function() {
+#'  y_sim = rnorm(length(mu), mean = mu, sd = sigma)
+#'  mse_obs = mean((y-mu)^2)
+#'  mse_sim = mean((y_sim - mu)^2)
+#'  p_mse = ifelse(mse_obs > mse_sim, 1, 0)
+#'
+#'  return(list(
+#'    val = list(
+#'      'p_mse' = p_mse
+#'    )
+#'  ))
+#'}
+#' 
 #' 
 #' @name mcmc_structures
-#' @docType data
-#' @keywords internal
-#' 
+#' @docType data 
 NULL

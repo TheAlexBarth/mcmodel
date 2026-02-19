@@ -16,4 +16,11 @@ boolean
 A comparison of means between the first 10th of a chain and the latter half
 The proper Geweke diagnostic uses a z-test of means but I used a t-test
 }
-\keyword{internal}
+\examples{
+geweke_check(rnorm(1000))
+
+}
+\references{
+Geweke, J. 1992. Evaluting the accuracy of sampling-based approaches to the calculations
+of posterior moments. Bayesian statistics. 4: 641-649.
+}

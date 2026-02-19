@@ -1,25 +1,31 @@
 #' Internal dispatch for a single chain run
 #' 
 #' @inheritParams mcmc_run
-#' @param n_burn length of burnin period if burn_adapt = FALSE, else minimum burnin
-#' @param ... additional args passed to SEE LINK
+#' @param prop_adapt integer interval for proposal adaptation. Default is 100
+#' @param adapt_tuner function for proposal adaptation. Default is \link{adapt_tuner_double_exp}. no_adapt is also a built-in option
+#' @param chain_check function to check chain convergence within adaptive burnin feaure.
 #' 
+#' @return list object with mcmc features
+#' 
+#' @importFrom utils txtProgressBar setTxtProgressBar
+#' 
+#' @keywords internal
 mcmc_run_internal = function(
     data_list,
     const_list,
     init_list,
     prior_pars,
+    prop_sd,
     update_functions,
-    n_burn = 5000,
-    n_iter = 1e5,
-    thin = 1,
+    save_names,
+    derv_quants,
+    derived_functions,
+    n_iter,
+    thin,
+    n_burn,
+    burn_adapt,
+    min_burn,
     prop_adapt = 100,
-    burn_adapt = FALSE,
-    min_burn = 1000,
-    prop_sd = NULL,
-    save_names = NULL,
-    derv_quants = NULL,
-    derived_functions = NULL,
     adapt_tuner = adapt_tuner_double_exp,
     chain_check = geweke_check
 ) {
@@ -65,6 +71,7 @@ mcmc_run_internal = function(
         }
         derv_save = list()
         for(dname in derv_quants) {
+            assign(dname, 1L)
             derv_save[[dname]] = array(NA, dim = max_save_size)
         }
     }
@@ -117,13 +124,21 @@ mcmc_run_internal = function(
         }
         #endregion----------------------------------
 
+
         #region \- check burn ------------------
         # burn-in behavior is different
         # if adatpvive burnin
         if(in_burnin) {
             #region \- prop tune --------------
             if(iter %% prop_adapt == 0 ) {
-                if(exists("acc_counter")) {
+                if(!is.null(prop_sd)) {
+                    mean_acc_rate = sapply(
+                        names(acc_counter),
+                        function(param) acc_counter[[param]] / prop_adapt
+                    ) |>
+                        mean()
+                    acc_good = (mean_acc_rate > 0.17 & mean_acc_rate < 0.50)
+                    #update prop_sd
                     for(param in names(acc_counter)) {
                         prop_sd[[param]] = adapt_tuner(param, acc_counter, prop_sd, prop_adapt)
                     }
@@ -145,22 +160,26 @@ mcmc_run_internal = function(
                         run_save[[param]][1:min_burn, ] = run_save[[param]][2:(min_burn+1), ]
                         run_save[[param]][min_burn, ] = as.vector(get(param))
                     }
-                    if(iter %% prop_adapt == 0) {
+                    if(iter %% prop_adapt == 0) {                 
                         check_obj = trim_chain(run_save, min_burn)
-                        if(assess_burnin(check_obj, chain_check)) {
+                        if(assess_burnin(check_obj, chain_check) & acc_good) {
                             in_burnin = FALSE
+                            acc_idx = 0
                             cat('\n', paste0("Exiting Burnin After ", iter, ' iterations..'))
                             cat('\n', 'Launching Save Intvs')
-                            pbiter = n_burn
+                            pbiter = n_burn # update progress bar to reflect iters
                         }
                     }
-                    if(iter >= round(n_iter*0.9)) {
-                        stop(paste0('Burn in failed to converge after ', iter, ' iterations'))
+                    if(iter >= n_burn) {
+                        in_burnin = FALSE
+                        acc_idx = 0
+                        cat('\n', 'Burn-in exited at set maximum n_burn')
                     }
                 }
             } else {
                 if(iter > n_burn) {
                     in_burnin = FALSE
+                    acc_idx = 0
                     cat('\n', 'Burnin ended at set length \n starting saving')
                 }
             }
@@ -177,6 +196,21 @@ mcmc_run_internal = function(
                 }
             }
             #endregion
+            
+            #region \- track acceptance rate ---------------------------
+            # this keeps track of all iterations regardless of thinning
+            # but only records every prop_adapt for memory sake
+            if(iter %% prop_adapt == 0) {
+                if(!is.null(prop_sd)) {
+                    acc_idx = acc_idx + prop_adapt
+                    mean_acc_rate = sapply(
+                        names(acc_counter),
+                        function(param) acc_counter[[param]] / acc_idx
+                    ) |>
+                        mean()
+                }
+            }
+            #endregion ------------------------------
 
             #region \- save --------------
             if((iter%%thin) == 0) {
@@ -245,6 +279,9 @@ format_output = function(save_item, derv_save) {
     chain_info = list(
         'size' = save_count
     )
+    if(exists('mean_acc_rate')) {
+      chain_info$mean_acc = get("mean_acc_rate")
+    }
 
     return(
         list(

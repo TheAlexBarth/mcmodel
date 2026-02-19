@@ -4,7 +4,7 @@
 \alias{format_output}
 \title{format outputs for mcmc algos}
 \usage{
-format_output(save_item, derv_save, drop_front = FALSE)
+format_output(save_item, derv_save)
 }
 \arguments{
 \item{save_item}{save object as a list with named parameters}

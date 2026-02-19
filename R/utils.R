@@ -1,5 +1,3 @@
-require(coda)
-
 #############
 #MARK: ADAPT TUNER
 #############
@@ -72,18 +70,6 @@ trim_chain = function(save_obj, trim_point, front = TRUE) {
     return(save_obj)
 }
 
-
-
-
-###############
-#MARK: Multi-Chain Function
-###############
-get_samples = function(chain_res) {
-    chain_res |> 
-        sapply('[[', 'samples')
-}
-
-
 ##################
 #MARK: Assess Burn
 ##################
@@ -122,8 +108,18 @@ assess_burnin = function(save_obj, chain_check) {
 #' 
 #' @param chain a single vector of an MCMC chain
 #' 
+#' @examples
+#' geweke_check(rnorm(1000))
+#' 
 #' @return boolean
-#' @keywords internal
+#' 
+#' @references
+#' Geweke, J. 1992. Evaluting the accuracy of sampling-based approaches to the calculations 
+#' of posterior moments. Bayesian statistics. 4: 641-649.
+#' 
+#' @importFrom stats t.test
+#' 
+#' @export
 geweke_check = function(chain) {
     first_quant = chain[1:round(length(chain)*0.1)]
     latter_half = chain[round(length(chain)*0.5):length(chain)]
@@ -210,7 +206,41 @@ fafa = function(arr) {
 ############
 # MARK: PSRF 
 ############
+#' Potential Scale Reduction Factor (Rhat)
+#' 
+#' Functions to calculate rhat. The default used in \link{mcmc_run} is the
+#' rank normalized, split chain R-hat described by Vehtari et al (2021). However,
+#' there is also the ability to calculate the classic Gelman-Rubin Diagnostic.
+#' 
+#' @references
+#' Vehtari A. Gelman A. Simpson D. Carpenter B. B ̈urkner P-C. 2021.
+#'   Rank-Normalization, Folding, and Localization:  An Improved ̂R for Assessing Convergence of  MCMC.
+#'   Bayesian Analysis 16(2): 667-718. 10.1214/20-BA1221.
+#' Gelman, A. and Rubin, D. B. (1992). 
+#'   “Inference from iterative simulation using multiple sequences (with discussion).” 
+#'   Statistical Science, 7(4): 457–511. 667, 668, 671, 675
+#' 
+#' @name rhat
+NULL
 
+#' Gelman-Rubin Rhat
+#' 
+#' Classic approach which REQUIRES a chain list with equal length chains.
+#' This is not as built out as the veharti approach and thus cannot support multidimensional output
+#' 
+#' @param chain_list a list of MCMC Chains
+#' 
+#' @examples
+#' n = 1000
+#' gelman_rubin_psrf(list(rnorm(n), rnorm(n))) # should be close to 1
+#' gelman_rubin_psrf(list(rnorm(n), rnorm(n, 100))) #should be large
+#' 
+#' @returns numeric score of rhat
+#' 
+#' @importFrom stats var
+#' 
+#' @rdname rhat
+#' @export
 gelman_rubin_psrf = function(chain_list) {
     ns = sapply(chain_list, length) |>
         unique()
@@ -228,12 +258,23 @@ gelman_rubin_psrf = function(chain_list) {
 
 #' Split Chain, Rank Normalized R-hat
 #' 
-#' Based on Vehtari et al 2021; 10.1214/20-BA1221
-#' this function only takes either a list or vector for ONE CHAIN
-#' The function can take any size array but will return a flattened value for each
-#' chain along the first axis.
+#' Based on Vehtari et al 2021; 10.1214/20-BA1221. This version supports both vector chains or multi-dimension arrays (assuming iterations along first axis)
+#' This script is a wrapper which calls \link{vsp_internal}
 #' 
-vehtari_split_psrf = function(chains){
+#' @param chains either a list of chains or vector of one chain (which will be split)
+#' @param rank_norm boolean for rank normalization
+#' 
+#' @examples
+#' 
+#' n = 1000
+#' vehtari_split_psrf(rnorm(n))
+#' vehtari_split_psrf(list(rnorm(n), rnorm(n)), rank_norm = FALSE)
+#' 
+#' @returns vector of rhat score(s)
+#' 
+#' @export
+#' @rdname rhat
+vehtari_split_psrf = function(chains, rank_norm = TRUE){
     #need to check dimension sizing
     if(is.list(chains)) {
         dims = unique(sapply(chains, function(x) length(dim(x))))
@@ -247,11 +288,19 @@ vehtari_split_psrf = function(chains){
         chains = lapply(1:mat_len, function(x) chains[,x])
     }
 
-    split_r = sapply(1:mat_len, function(x) vsp_internal(chains[[x]], rank_norm = TRUE))
+    split_r = sapply(1:mat_len, function(x) vsp_internal(chains[[x]], rank_norm = rank_norm))
     return(split_r)
 }
 
-#'
+#' Interal features for Vehtari function
+#' 
+#' @param chains a single chains (e.g., like the gelman rubin)
+#' @param rank_norm boolean to ranknoramlize for not
+#' 
+#' @importFrom stats qnorm
+#' 
+#' @returns numeric of rhat values
+#' @keywords internal
 vsp_internal = function(chains, rank_norm) {
     if(is.list(chains)) {
         split_chains = chains |> lapply(

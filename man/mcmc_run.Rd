@@ -10,19 +10,21 @@ mcmc_run(
   init_list,
   init_generator = NULL,
   prior_pars,
-  update_functions,
-  burn_adapt = FALSE,
-  save_names = NULL,
   prop_sd = NULL,
+  update_functions,
+  save_names = NULL,
   derv_quants = NULL,
   derived_functions = NULL,
+  n_iter = 1e+05,
+  thin = 1,
+  n_burn = 5000,
+  burn_adapt = FALSE,
+  min_burn = 1000,
   n_chains = 1,
   n_cores = NULL,
   seeds = NULL,
-  adapt_tuner = adapt_tuner_double_exp,
-  chain_check = geweke_check,
-  log_dir = ".",
   log_files = TRUE,
+  log_dir = ".",
   delete_logs = TRUE,
   ...
 )
@@ -32,21 +34,31 @@ mcmc_run(
 
 \item{const_list}{list object with relevant indexing used in updates/derived fns}
 
-\item{init_list}{list object with ALL parameters used in update/derived, see \link{mcmc_structure}}
+\item{init_list}{list object with ALL parameters used in update/derived, see \link{mcmc_structures}}
 
-\item{init_generator}{(optional) IF n_chains >1, a list of functions to change init_list points. refer to \link{mcmc_structure}}
+\item{init_generator}{(optional) IF n_chains >1, a list of functions to change init_list points. refer to \link{mcmc_structures}}
 
 \item{prior_pars}{list of prior values used in update functions}
+
+\item{prop_sd}{IF any Metropolis-Hastings algos are used with, prop_sd much be provided.}
 
 \item{update_functions}{a list of update functions used in blocks for MCMC application}
 
 \item{save_names}{(optional) list of parameters in init_list to save out. Defaults to init_list}
 
-\item{prop_sd}{IF any Metropolis-Hastings algos are used with, prop_sd much be provided.}
-
 \item{derv_quants}{Character vector specifying derived quantities to track.}
 
 \item{derived_functions}{List of functions for computing derived quantities.}
+
+\item{n_iter}{integer for number of interations}
+
+\item{thin}{integer for thinning interval. Default is 1.}
+
+\item{n_burn}{integer for maximum burn-in length}
+
+\item{burn_adapt}{logical to decide to use adaptive burn-in procedure.}
+
+\item{min_burn}{integer used if burn_adapt=TRUE, how long minimum burn in needs to be}
 
 \item{n_chains}{number of chains to run (if > 1 will be done in parallel)}
 
@@ -54,36 +66,64 @@ mcmc_run(
 
 \item{seeds}{optional vector of seeds (equal to n_chains)}
 
-\item{adapt_tuner}{function for tuning prop_sd in MH applications}
+\item{log_files}{logical, should chain outputs be recorded if run in parallel? Default TRUE}
 
-\item{chain_check}{function for assess_burnin if run in adaptive burnin.}
+\item{log_dir}{if log_files, where to write a log directory (note one log will be made for each chain)}
 
-\item{...}{arguments passed to the internal MCMC engines, see}
+\item{delete_logs}{logical, delete log files once completed. default is TRUE}
 
-\item{adaptive}{logical - if true adaptive burnin and thinning will be used. Adaptive tunning occurs in both unless adapt_tuner=no_adapt}
+\item{...}{arguments passed to the internal MCMC engines, see \link{mcmc_run_internal}}
 }
 \value{
-A list of MCMC output with two items;
-\itemize{
-\item{samples}{list of posterior samplews}
-\item{info}{chain diagnostics}
-}
+A list of MCMC output with two items, samples list and info list
 }
 \description{
 High-level wrapper for running simple or adaptive MCMC chains with
-options for single or multichain runs (in parallel). See \code{\link{mcmc_structure}} for full detail
-for details and examples on properly constructing runs.
+options for single or multichain runs (in parallel). See \code{\link{mcmc_structures}} for full detail
+for details and examples on properly constructing runs. Algorithmic development was inspired by Hooten & Hobbs 2019, however the code
+allows for substantial flexibility. The structure of data inputs were largely inspired by NIMBLE, but intentially without a bulky object-oriented
+structure.
+}
+\details{
+There are several features in this default MCMC algorithm which are worth understanding to correct set parameters. First, users
+should be familar with how the burn-in procedure is selected. If adaptive-burn in is used, the burn-in is set to be
+AT LEAST min_burn and AT MOST n_burn. Thus, if using burn_adapt, it is recommended to increase n_burn to ensure that sufficient
+burn-in is provided as the default settings are likely too low in most real cases. If using adaptive burn-in the default exit
+is based on \code{\link{geweke_check}}. If MH-steps are used, early exit in adaptive burn-in also requires all acceptance rates to fall
+between 0.17 and 0.50. Finally, if working in parallel, it is possible that some chains will end sooner than others in adaptive burn-in
+To allow for convergence checks, I automatically trucate longer chains to the shortest one - effectivelly imposing a similar burn-in across samples.
+
+In all cases, there is an adaptive proposal adjustment for MH-updates. The function used to update the prop_sd list is provided with adapt_tuner.
+By default this is \code{\link{adapt_tuner_double_exp}}, although user definied functions are possible. To avoid proposal adaptation, set adapt_tuner=no_adapt
+While acceptance rate per parameter is not recorded, the overall mean acceptance rate is reported if MH steps are present.
+
+A full working example is available with package source code OR can be produced throgugh following the set-up with \link{mcmc_structures}
 }
 \examples{
 \dontrun{
 mcmc_out <- mcmc_run(
- data_list = my_data,
- const_list = my_consts,
- init_list = my_init,
+ data_list = data_list,
+ const_list = const_list,
+ init_list = init_list,
+ init_generator = init_generator,
  prior_pars = my_prior,
+ prop_sd = prop_sd,
  update_functions = update_fns,
- chains = 1
+ save_names = c('beta', 'sigma'),
+ derv_quants = c('p_mse'),
+ derived_functions = list('val' = calc_pmse),
+ n_iter = 1e4,
+ thin = 1,
+ n_burn = 5000,
+ burn_adapt = TRUE,
+ min_burn = 1000,
+ n_chains = 10
 )
 }
 
+}
+\references{
+Hooten, M.B. and T.J. Hefley. (2019). Bringing Bayesian Models to Life. Chapman and Hall/CRC.
+NIMBLE Development Team. 2026. NIMBLE: MCMC, Particle Filtering, and Programmable Hierarchical Modeling.
+doi: 10.5281/zenodo.1211190. R package version 1.4.1, https://cran.r-project.org/package=nimble.
 }

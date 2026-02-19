@@ -4,12 +4,14 @@
 \alias{trim_chain}
 \title{Trim Chains}
 \usage{
-trim_chain(save_obj, trim_point)
+trim_chain(save_obj, trim_point, front = TRUE)
 }
 \arguments{
 \item{save_obj}{a list of paramters that are saved accross iterations}
 
 \item{trim_point}{single index integer at which a trim should extend.}
+
+\item{front}{Logical to keep front DEFAULT TRUE.}
 }
 \value{
 a list with the trimmed save object

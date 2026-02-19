@@ -136,6 +136,7 @@ mcmc_run_internal = function(
                         names(acc_counter),
                         function(param) acc_counter[[param]] / prop_adapt
                     ) |>
+                        unlist() |>
                         mean()
                     acc_good = (mean_acc_rate > 0.17 & mean_acc_rate < 0.50)
                     #update prop_sd
@@ -207,6 +208,7 @@ mcmc_run_internal = function(
                         names(acc_counter),
                         function(param) acc_counter[[param]] / acc_idx
                     ) |>
+                        unlist() |>
                         mean()
                 }
             }
@@ -363,4 +365,5 @@ reset_acc_counter = function(prop_sd) {
         acc_list[[param]] = array(0, dim = pdim)
     }
     return(acc_list)
+
 }

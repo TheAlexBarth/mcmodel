@@ -233,7 +233,7 @@ mcmc_run_internal = function(
 #' notes to self 
 #' - remove drop front in non-adaptive stopping.
 #' - add option for info calculation to not run if done in multi-chain cases.
-format_output = function(save_item, derv_save, drop_front = FALSE) {
+format_output = function(save_item, derv_save) {
     #chop of the pre-thinned items
     if(!is.null(derv_save)){
         out = c(save_item, derv_save)
@@ -241,20 +241,10 @@ format_output = function(save_item, derv_save, drop_front = FALSE) {
         out = save_item
     }
 
-    if(drop_front) {
-        for(item in names(out)) {
-            out[[item]] = gafa(out[[item]], -c(1:goal_ess))
-        }
-        chain_info = list(
-            'ESS' = sapply(out, function(x) effectiveSize(fafa(x))),
-            'size' = save_count-goal_ess
-        )
-    } else {
-        chain_info = list(
-            'ESS' = sapply(out, function(x) effectiveSize(fafa(x))),
-            'size' = save_count
-        )
-    }
+    
+    chain_info = list(
+        'size' = save_count
+    )
 
     return(
         list(

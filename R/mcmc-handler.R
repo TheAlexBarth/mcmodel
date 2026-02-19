@@ -281,6 +281,10 @@ mcmc_run = function(
                 dots
             )
         )
+        
+        out$info$ESS = sapply(out$samples, function(x) effectiveSize(fafa(x)))
+        out$info$rhat = lapply(out$samples, vehtari_split_psrf)
+        out$info$n_chains = 1
     }
     return(out)
 }

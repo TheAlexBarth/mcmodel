@@ -129,30 +129,32 @@ init_generator = list(
 #   save_names = c('beta','sigma'),
 #   n_burn = 5000,
 #   n_iter = 5e4,
-#   thin = 2
+#   thin = 1
 # )})
 
-system.time({
-  mcmc_test2 = mcmc_run(
-    data_list = data_list,
-    const_list = const_list,
-    init_list = init_list,
-    init_generator = init_generator,
-    prior_pars = prior_pars,
-    prop_sd = prop_sd,
-    update_functions = list(
-      'beta' = update_beta,
-      'sig' = update_sigma
-    ),
-    burn_adapt = TRUE,
-    save_names = c('beta','sigma'),
-    min_burn = 5000,
-    n_iter = 1e4,
-    n_chains = 20,
-    thin = 2
-  )
-})
+# system.time({
+#   mcmc_test2 = mcmc_run(
+#     data_list = data_list,
+#     const_list = const_list,
+#     init_list = init_list,
+#     init_generator = init_generator,
+#     prior_pars = prior_pars,
+#     prop_sd = prop_sd,
+#     update_functions = list(
+#       'beta' = update_beta,
+#       'sig' = update_sigma
+#     ),
+#     burn_adapt = TRUE,
+#     save_names = c('beta','sigma'),
+#     min_burn = 5000,
+#     n_iter = 1e4,
+#     n_chains = 20,
+#     thin = 2
+#   )
+# })
 
+# post_summary(mcmc_test2)
+# post_summary(mcmc_test)
 
 
 # system.time({mcmc_test1 = mcmc_run_internal(

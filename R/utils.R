@@ -303,16 +303,26 @@ vehtari_split_psrf = function(chains, rank_norm = TRUE){
 #' @keywords internal
 vsp_internal = function(chains, rank_norm) {
     if(is.list(chains)) {
-        split_chains = chains |> lapply(
-            function(x) split(x, cut(seq_along(x), 2, labels = FALSE))
-        ) |>
-        do.call(what = c,)
+        split_chains = unlist(
+            lapply(chains, function(x) {
+                n  = length(x)
+                nh = floor(n/2)
+                list(x[1:nh], x[(nh+1):(2*nh)])
+            }),
+            recursive = FALSE
+        )
     } else {
-        split_chains = split(chains, cut(seq_along(chains), 2, labels = FALSE))
+        n  = length(chains)
+        nh = floor(n/2)
+        split_chains = list(
+            chains[1:nh],
+            chains[(nh+1):(2*nh)]
+        )
     }
-
+    
     M = length(split_chains)
-    N = unique(sapply(split_chains, length))
+    N = length(split_chains[[1]])
+    
     if(rank_norm) {
         r = rank(unlist(split_chains, use.names = FALSE))
         z = qnorm((r-(3/8))/(N*M + 1/4))

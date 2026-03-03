@@ -124,48 +124,48 @@
 # }
 
 
-# # system.time({mcmc_test = mcmc_run(
-# #   data_list = data_list,
-# #   const_list = const_list,
-# #   init_list = init_list,
-# #   prior_pars = prior_pars,
-# #   prop_sd = prop_sd,
-# #   update_functions = list(
-# #     'beta' = update_beta,
-# #     'sig' = update_sigma
-# #   ),
-# #   save_names = c('beta','sigma'),
-# #   derv_quants = 'p_mse',
-# #   derived_functions = list('pval' = calc_pmse),
-# #   burn_adapt = TRUE,
-# #   n_iter = 1e4,
-# #   n_burn = 5000,
-# #   thin = 1
-# # )})
+# system.time({mcmc_test = mcmc_run(
+#   data_list = data_list,
+#   const_list = const_list,
+#   init_list = init_list,
+#   prior_pars = prior_pars,
+#   prop_sd = prop_sd,
+#   update_functions = list(
+#     'beta' = update_beta,
+#     'sig' = update_sigma
+#   ),
+#   save_names = c('beta','sigma'),
+#   derv_quants = 'p_mse',
+#   derived_functions = list('pval' = calc_pmse),
+#   burn_adapt = TRUE,
+#   n_iter = 1e4,
+#   n_burn = 5000,
+#   thin = 1
+# )})
 
-# # system.time({
-# #   mcmc_test2 = mcmc_run(
-# #     data_list = data_list,
-# #     const_list = const_list,
-# #     init_list = init_list,
-# #     init_generator = init_generator,
-# #     prior_pars = prior_pars,
-# #     prop_sd = prop_sd,
-# #     update_functions = list(
-# #       'beta' = update_beta,
-# #       'sig' = update_sigma
-# #     ),
-# #     derv_quants = 'p_mse',
-# #     derived_functions = list('pval' = calc_pmse),
-# #     burn_adapt = TRUE,
-# #     save_names = c('beta','sigma'),
-# #     min_burn = 5000,
-# #     n_iter = 1e4,
-# #     n_chains = 20,
-# #     thin = 2
-# #   )
-# # })
-
+# system.time({
+#   mcmc_test2 = mcmc_run(
+#     data_list = data_list,
+#     const_list = const_list,
+#     init_list = init_list,
+#     init_generator = init_generator,
+#     prior_pars = prior_pars,
+#     prop_sd = prop_sd,
+#     update_functions = list(
+#       'beta' = update_beta,
+#       'sig' = update_sigma
+#     ),
+#     derv_quants = 'p_mse',
+#     derived_functions = list('pval' = calc_pmse),
+#     burn_adapt = TRUE,
+#     save_names = c('beta','sigma'),
+#     min_burn = 5000,
+#     n_iter = 1e4,
+#     n_chains = 20,
+#     thin = 2
+#   )
+# })
+ 
 # # post_summary(mcmc_test)
 
 # # system.time({mcmc_test1 = mcmc_run_internal(

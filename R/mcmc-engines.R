@@ -100,7 +100,7 @@ mcmc_run_internal = function(
     save_count = 0
     cat('\n', 'Launching Run')
     in_burnin = TRUE
-    for(iter in 1:n_iter) {
+    for(iter in 1:n_burn) {
         pbiter = pbiter + 1
         setTxtProgressBar(pb, pbiter)
 
@@ -128,107 +128,131 @@ mcmc_run_internal = function(
         #region \- check burn ------------------
         # burn-in behavior is different
         # if adatpvive burnin
-        if(in_burnin) {
-            #region \- prop tune --------------
-            if(iter %% prop_adapt == 0 ) {
-                if(!is.null(prop_sd)) {
-                    mean_acc_rate = sapply(
-                        names(acc_counter),
-                        function(param) acc_counter[[param]] / prop_adapt
-                    ) |>
-                        unlist() |>
-                        mean()
-                    acc_good = (mean_acc_rate > 0.17 & mean_acc_rate < 0.50)
-                    #update prop_sd
-                    for(param in names(acc_counter)) {
-                        prop_sd[[param]] = adapt_tuner(param, acc_counter, prop_sd, prop_adapt)
-                    }
-                    acc_counter = reset_acc_counter(prop_sd)
+        
+        #region \- prop tune --------------
+        if(iter %% prop_adapt == 0 ) {
+            if(!is.null(prop_sd)) {
+                mean_acc_rate = sapply(
+                    names(acc_counter),
+                    function(param) acc_counter[[param]] / prop_adapt
+                ) |>
+                    unlist() |>
+                    mean()
+                acc_good = (mean_acc_rate > 0.17 & mean_acc_rate < 0.50)
+                #update prop_sd
+                for(param in names(acc_counter)) {
+                    prop_sd[[param]] = adapt_tuner(param, acc_counter, prop_sd, prop_adapt)
                 }
+                acc_counter = reset_acc_counter(prop_sd)
             }
-            #endregion -------------------------------
+        }
+        #endregion -------------------------------
 
-            if(burn_adapt) {
-                if(iter <= min_burn) {
-                    for(param in names(run_save)) {
-                        run_save[[param]][iter, ] = as.vector(get(param))
-                    }
-                } else {
-                    # streaming save of length min_burn
-                    for(param in names(run_save)) {
-                        pdim = dim(run_save[[param]])
-                        pdx = rep(list(TRUE), length(pdim)-1L)
-                        run_save[[param]][1:min_burn, ] = run_save[[param]][2:(min_burn+1), ]
-                        run_save[[param]][min_burn, ] = as.vector(get(param))
-                    }
-                    if(iter %% prop_adapt == 0) {                 
-                        check_obj = trim_chain(run_save, min_burn)
-                        if(assess_burnin(check_obj, chain_check) & acc_good) {
-                            in_burnin = FALSE
-                            acc_idx = 0
-                            cat('\n', paste0("Exiting Burnin After ", iter, ' iterations..'))
-                            cat('\n', 'Launching Save Intvs')
-                            pbiter = n_burn # update progress bar to reflect iters
-                        }
-                    }
-                    if(iter >= n_burn) {
-                        in_burnin = FALSE
-                        acc_idx = 0
-                        cat('\n', 'Burn-in exited at set maximum n_burn')
-                    }
+        if(burn_adapt) {
+            if(iter <= min_burn) {
+                for(param in names(run_save)) {
+                    run_save[[param]][iter, ] = as.vector(get(param))
                 }
             } else {
-                if(iter > n_burn) {
+                # streaming save of length min_burn
+                for(param in names(run_save)) {
+                    pdim = dim(run_save[[param]])
+                    pdx = rep(list(TRUE), length(pdim)-1L)
+                    run_save[[param]][1:min_burn, ] = run_save[[param]][2:(min_burn+1), ]
+                    run_save[[param]][min_burn, ] = as.vector(get(param))
+                }
+                if(iter %% prop_adapt == 0) {                 
+                    check_obj = trim_chain(run_save, min_burn)
+                    if(assess_burnin(check_obj, chain_check) & acc_good) {
+                        in_burnin = FALSE
+                        acc_idx = 0
+                        cat('\n', paste0("Exiting Burnin After ", iter, ' iterations..'))
+                        cat('\n', 'Launching Save Intvs')
+                        pbiter = n_burn # update progress bar to reflect iters
+                        iter = n_burn #jump to end of burnin
+                        cat('\n', paste0('jumping to ', iter, ' iterations...'))
+                    }
+                }
+                if(iter >= n_burn) {
                     in_burnin = FALSE
                     acc_idx = 0
-                    cat('\n', 'Burnin ended at set length \n starting saving')
+                    cat('\n', 'Burn-in exited at set maximum n_burn')
                 }
             }
-        #endregion ----------------------------
         } else {
-            #region \- run derv fn ----------------
-            if(!is.null(derv_quants)) {
-                for(i in 1:length(derived_functions)) {
-                    derv_fn = derived_functions[[i]]
-                    res = derv_fn()
-                    for(par in names(res$val)) {
-                        assign(par, res$val[[par]])
-                    }
-                }
+            if(iter > n_burn) {
+                in_burnin = FALSE
+                acc_idx = 0
+                cat('\n', 'Burnin ended at set length \n starting saving')
             }
-            #endregion
-            
-            #region \- track acceptance rate ---------------------------
-            # this keeps track of all iterations regardless of thinning
-            # but only records every prop_adapt for memory sake
-            if(iter %% prop_adapt == 0) {
-                if(!is.null(prop_sd)) {
-                    acc_idx = acc_idx + prop_adapt
-                    mean_acc_rate = sapply(
-                        names(acc_counter),
-                        function(param) acc_counter[[param]] / acc_idx
-                    ) |>
-                        unlist() |>
-                        mean()
-                }
-            }
-            #endregion ------------------------------
-
-            #region \- save --------------
-            if((iter%%thin) == 0) {
-                save_count = save_count + 1
-                for(param in save_names) {
-                    save[[param]][save_count, ] = as.vector(get(param))
-                }
-
-                if(!is.null(derv_quants)) {
-                    for(dname in derv_quants) {
-                        derv_save[[dname]][save_count] = get(dname)
-                    }
-                } 
-            }
-            #endregion --------------------------
         }
+    }
+    acc_idx = 0
+    for (iter in (n_burn + 1):n_iter) {
+        setTxtProgressBar(pb, pbiter)
+        #region \- Run update block -------------------
+        for(i in 1:length(update_functions)) {
+            update_fn = update_functions[[i]]
+                if('prop_sd' %in% names(formals(update_fn))) {
+                    res = update_fn(prop_sd)
+                    # only need to update here if in MH
+                    for(cpar in names(res$acc)) {
+                        acc_counter[[cpar]] = acc_counter[[cpar]] + res$acc[[cpar]]
+                    }
+                } else {
+                    # for gibbs functions with no prop_sd
+                    res = update_fn()
+                }
+                # this loop hits regardless of if it were an MH or Gibbs
+                for(par in names(res$val)) {
+                    assign(par, res$val[[par]])
+            }
+        }
+        #endregion----------------------------------
+    
+        
+        #region \- run derv fn ----------------
+        if(!is.null(derv_quants)) {
+            for(i in 1:length(derived_functions)) {
+                derv_fn = derived_functions[[i]]
+                res = derv_fn()
+                for(par in names(res$val)) {
+                    assign(par, res$val[[par]])
+                }
+            }
+        }
+        #endregion
+        
+        #region \- track acceptance rate ---------------------------
+        # this keeps track of all iterations regardless of thinning
+        # but only records every prop_adapt for memory sake
+        if(iter %% prop_adapt == 0) {
+            if(!is.null(prop_sd)) {
+                acc_idx = acc_idx + prop_adapt
+                mean_acc_rate = sapply(
+                    names(acc_counter),
+                    function(param) acc_counter[[param]] / acc_idx
+                ) |>
+                    unlist() |>
+                    mean()
+            }
+        }
+        #endregion ------------------------------
+
+        #region \- save --------------
+        if((iter%%thin) == 0) {
+            save_count = save_count + 1
+            for(param in save_names) {
+                save[[param]][save_count, ] = as.vector(get(param))
+            }
+
+            if(!is.null(derv_quants)) {
+                for(dname in derv_quants) {
+                    derv_save[[dname]][save_count] = get(dname)
+                }
+            } 
+        }
+        #endregion --------------------------
     }
     cat("\n Done with MCMC, Saving....")
 

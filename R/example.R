@@ -123,7 +123,6 @@
 #   ))
 # }
 
-
 # system.time({mcmc_test = mcmc_run(
 #   data_list = data_list,
 #   const_list = const_list,
@@ -140,6 +139,8 @@
 #   burn_adapt = TRUE,
 #   n_iter = 1e4,
 #   n_burn = 5000,
+#   min_burn = 500,
+#   chkpt_freq = 0,
 #   thin = 1
 # )})
 
@@ -160,9 +161,11 @@
 #     burn_adapt = TRUE,
 #     save_names = c('beta','sigma'),
 #     min_burn = 5000,
-#     n_iter = 1e4,
+#     n_iter = 1e5,
+#     n_burn = 10000,
 #     n_chains = 20,
-#     thin = 2
+#     thin = 2,
+#     delete_logs = FALSE
 #   )
 # })
  

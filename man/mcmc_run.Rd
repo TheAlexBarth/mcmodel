@@ -15,16 +15,18 @@ mcmc_run(
   save_names = NULL,
   derv_quants = NULL,
   derived_functions = NULL,
-  n_iter = 1e+05,
-  thin = 1,
-  n_burn = 5000,
+  n_iter,
+  thin,
+  n_burn,
   burn_adapt = FALSE,
-  min_burn = 1000,
+  min_burn,
+  chkpt_freq = "default",
+  work_dir = "./run",
+  prop_adapt = 100,
   n_chains = 1,
   n_cores = NULL,
   seeds = NULL,
   log_files = TRUE,
-  log_dir = ".",
   delete_logs = TRUE,
   ...
 )
@@ -60,6 +62,12 @@ mcmc_run(
 
 \item{min_burn}{integer used if burn_adapt=TRUE, how long minimum burn in needs to be}
 
+\item{chkpt_freq}{interval of when to write out blocked chunks}
+
+\item{work_dir}{directory to work in for logs and checkpoints}
+
+\item{prop_adapt}{interval for tuning proposal in a MH-example}
+
 \item{n_chains}{number of chains to run (if > 1 will be done in parallel)}
 
 \item{n_cores}{optionally specify number of cores for parallel run. If don't want parallel execution, set n_cores=1}
@@ -67,8 +75,6 @@ mcmc_run(
 \item{seeds}{optional vector of seeds (equal to n_chains)}
 
 \item{log_files}{logical, should chain outputs be recorded if run in parallel? Default TRUE}
-
-\item{log_dir}{if log_files, where to write a log directory (note one log will be made for each chain)}
 
 \item{delete_logs}{logical, delete log files once completed. default is TRUE}
 
@@ -114,7 +120,7 @@ mcmc_out <- mcmc_run(
  derived_functions = list('val' = calc_pmse),
  n_iter = 1e4,
  thin = 1,
- n_burn = 5000,
+ min_burn = 5000,
  burn_adapt = TRUE,
  min_burn = 1000,
  n_chains = 10

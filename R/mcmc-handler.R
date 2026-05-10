@@ -22,11 +22,13 @@
 #' @param n_burn integer for maximum burn-in length
 #' @param burn_adapt logical to decide to use adaptive burn-in procedure.
 #' @param min_burn integer used if burn_adapt=TRUE, how long minimum burn in needs to be
+#' @param chkpt_freq interval of when to write out blocked chunks
+#' @param work_dir directory to work in for logs and checkpoints
+#' @param prop_adapt interval for tuning proposal in a MH-example
 #' @param n_chains number of chains to run (if > 1 will be done in parallel)
 #' @param n_cores optionally specify number of cores for parallel run. If don't want parallel execution, set n_cores=1
 #' @param seeds optional vector of seeds (equal to n_chains)
 #' @param log_files logical, should chain outputs be recorded if run in parallel? Default TRUE
-#' @param log_dir if log_files, where to write a log directory (note one log will be made for each chain)
 #' @param delete_logs logical, delete log files once completed. default is TRUE
 #' @param ... arguments passed to the internal MCMC engines, see \link{mcmc_run_internal}
 #'
@@ -63,7 +65,7 @@
 #'  derived_functions = list('val' = calc_pmse),
 #'  n_iter = 1e4,
 #'  thin = 1,
-#'  n_burn = 5000,
+#'  min_burn = 5000,
 #'  burn_adapt = TRUE,
 #'  min_burn = 1000,
 #'  n_chains = 10
@@ -90,19 +92,33 @@ mcmc_run = function(
     save_names = NULL,
     derv_quants = NULL,
     derived_functions = NULL,
-    n_iter = 1e5,
-    thin = 1,
-    n_burn = 5e3,
+    n_iter,
+    thin,
+    n_burn,
     burn_adapt = FALSE,
-    min_burn = 1e3,
+    min_burn,
+    chkpt_freq = 'default',
+    work_dir = './run',
+    prop_adapt = 100,
     n_chains = 1,
     n_cores = NULL,
     seeds = NULL,
     log_files = TRUE,
-    log_dir = '.',
     delete_logs = TRUE,
     ...
 ) {
+    # some basic upfront adjusts
+    if(chkpt_freq == 'default') {
+        chkpt_freq = n_iter %/% 10
+    }
+    if(work_dir == '.') {
+        stop('Cannot set work_dir to current working directory!')
+    }
+    # everything must divide cleanly
+    chkpt_freq = adjust_divisor(n_iter, chkpt_freq) 
+    n_burn = adjust_divisor(n_iter, n_burn)
+    thin = adjust_divisor(n_iter, thin)
+
     dots = list(...)
     # MARK: Checks
     if(!is.null(seeds) & length(seeds) != n_chains) {
@@ -111,6 +127,7 @@ mcmc_run = function(
 
     if(n_chains > 1) {
         #MARK: Multi-chain run
+        
         init_lists = list()
         if(is.null(init_generator)) {
             warning('No init_generator provided, all inits will be same point')
@@ -167,10 +184,12 @@ mcmc_run = function(
             n_burn,
             burn_adapt,
             min_burn,
+            chkpt_freq,
+            prop_adapt,
             extra_args = dots
         ) {
             if(log_files) {
-                log_dir = file.path(log_dir, 'logs')
+                log_dir = file.path(work_dir, 'logs')
                 if(!dir.exists(log_dir)) {
                     dir.create(log_dir, recursive = TRUE)
                 }
@@ -181,6 +200,7 @@ mcmc_run = function(
                 sink(zz)
                 sink(zz, type = "message")
             }
+            chkpt_path = file.path(work_dir, paste0(chain_id,'_chkpts'))
             base_args = list(
                     data_list = data_list,
                     const_list = const_list,
@@ -195,7 +215,10 @@ mcmc_run = function(
                     thin = thin,
                     n_burn = n_burn,
                     burn_adapt = burn_adapt,
-                    min_burn = min_burn
+                    min_burn = min_burn,
+                    chkpt_path = chkpt_path,
+                    chkpt_freq = chkpt_freq,
+                    prop_adapt = prop_adapt
             )
             on.exit(
                 {
@@ -214,7 +237,6 @@ mcmc_run = function(
             all_args = c(base_args, extra_args)
             worker_out = do.call(mcmc_run_internal, all_args)
             return(worker_out)
-      
         }
 
         chain_res = future.apply::future_lapply(
@@ -236,6 +258,8 @@ mcmc_run = function(
                     n_burn = n_burn,
                     burn_adapt = burn_adapt,
                     min_burn = min_burn,
+                    chkpt_freq = chkpt_freq,
+                    prop_adapt = prop_adapt,
                     extra_args = dots
                 )
             },
@@ -257,10 +281,13 @@ mcmc_run = function(
                 burn_adapt = burn_adapt,
                 min_burn = min_burn,
                 log_files = log_files,
-                log_dir = log_dir,
+                work_dir = work_dir,
+                chkpt_freq = chkpt_freq,
+                prop_adapt = prop_adapt,
                 delete_logs = delete_logs,
                 dots = dots
-            )
+            ),
+            future.packages = c('mcmodel')
         )
         #endregion -----------------------------------------------------------------
 
@@ -274,8 +301,6 @@ mcmc_run = function(
             sapply('[[', 'size') |>
             min()
 
-        chain_samples = truncate_samples(chain_res, min_length)
-
         # need to flip samples to vector form
         if(!is.null(derv_quants)) {
             keep_names = c(save_names, derv_quants)
@@ -284,7 +309,7 @@ mcmc_run = function(
         }
         chain_samples = lapply(
             keep_names,
-            function(par) lapply(chain_samples, '[[', par)
+            function(par) lapply(chain_res, function(x) x$samples[[par]])
         )
         names(chain_samples) = keep_names
         split_r = lapply(chain_samples, vehtari_split_psrf)
@@ -304,12 +329,6 @@ mcmc_run = function(
                 "chain_idx" = rep(1:n_chains, each = min_length)
             )
         )
-      
-        if(!is.null(chain_res[[1]]$info$mean_acc)) {
-            out$info$mean_acc = sapply(chain_res, function(x) x[['info']][['mean_acc']]) |> 
-                mean()
-        }
-
         #endregion ------------------------------------
         
 
@@ -333,7 +352,10 @@ mcmc_run = function(
                     thin = thin,
                     n_burn = n_burn,
                     burn_adapt = burn_adapt,
-                    min_burn = min_burn
+                    min_burn = min_burn,
+                    chkpt_path = work_dir,
+                    chkpt_freq = chkpt_freq,
+                    prop_adapt = prop_adapt
                 ),
                 dots
             )
@@ -342,30 +364,105 @@ mcmc_run = function(
         out$info$ESS = sapply(out$samples, function(x) effectiveSize(fafa(x)))
         out$info$rhat = lapply(out$samples, vehtari_split_psrf)
         out$info$n_chains = 1
+        class(out) = c('list', 'mcmodel_result')
     }
+    class(out) = c('list', 'mcmodel_result')
+    return(out)
+}
+ 
+
+#' Adjust inputs
+#' 
+#' @param x larger val
+#' @param v smaller val
+#' 
+#' @returns adjusted value of y
+#' @keywords internal
+adjust_divisor <- function(x, v) {
+    if(v == 0) {
+        return(v)
+    }
+    # already valid
+    if(v < x && x %% v == 0)
+      return(v)
+  
+    # search downward for nearest divisor
+    for(d in seq(min(v, x - 1), 1)) {
+      if(x %% d == 0){
+        warning('\n', 'Adjusting input ', v, ' to ', d)
+        return(d)
+      }
+    }
+    stop('Invalid inputs for burn or check in freq')
+}
+
+ 
+ #' Print Method for outputs
+ #' 
+ #' @param x mcmodel result
+ #' @param ... dots to print not used
+ #' 
+ #' @returns Print details of out
+ #' @export
+ #' @method print mcmodel_result
+ print.mcmodel_result = function(x, ... ) {
+     cat('\n', 'Mcmodel Run Result: ' , '\n')
+     cat(x$info$size, ' samples across ', x$info$n_chains, ' chains','\n')
+     cat('Traced variables: ', paste(names(x$samples), collapse = ', '))
+ }
+
+ 
+#' Posterior Summary Print
+#' 
+#' @param object output from \link{mcmc_run}
+#' @param ... dots not used
+#' 
+#' 
+#' @returns a matrix of summary values
+#' @export
+#' @method summary mcmodel_result
+summary.mcmodel_result = function(object,...) {
+    
+    parnames = names(object$samples)
+
+    core = parnames |> 
+        lapply(function(x) {
+            mat = fafa(object$samples[[x]]) |> 
+                apply(2, summarize_chain) |> 
+                rbind(
+                    'ESS' = object$info$ESS[[x]],
+                    'rhat' = object$info$rhat[[x]]
+                ) |> 
+                t()
+            rownames(mat) = paste0(x, 1:length(object$info$ESS[[x]]))
+            return(mat)
+        }) 
+    
+    out = do.call(rbind, core)
+    
     return(out)
 }
 
-########
-#MARK: Formatting
-##########
-#' Truncate to the shortest chain length
+#MARK: Summary
+#' Create Chain Summary
 #' 
-#' for multi-chain runs, chains must be similar length
-#' in order to calculate Rhat. This discards some small number of 
-#' points. Future extensions of this package may consider tracking/warning
-#' if chains are substantially different lengths.
+#' @param chain a chain of single values
 #' 
-#' @param chain_res result from future loop
-#' @param min_length the minimum lenght of all chains
+#' @examples
+#' summarize_chain(rnorm(10000))
 #' 
-#' @return a list of truncated samples
-#' @keywords internal
-truncate_samples = function(chain_res, min_length) {
-    #could use trim chain here
-    trunc_samples = chain_res |>
-        lapply('[[', 'samples') |>
-        lapply(trim_chain, min_length, front = FALSE)
-
-    return(trunc_samples)
+#' @return a vector of summary values, slightly more detailed than summarize.
+#' 
+#' @importFrom stats median quantile
+#' 
+#' @export
+summarize_chain = function(chain) {
+    quants = quantile(chain, probs = c(0.25, 0.75, 0.125, 0.875, 0.025,0.975))
+    names(quants) = c('low.50', "high.50", "low.75", "high.75", "low.95", "high.95")
+    out = c(
+        'mean' = mean(chain),
+        'median' = median(chain),
+        quants
+    )
+    return(out)
 }

@@ -1,3 +1,5 @@
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20137678.svg)](https://doi.org/10.5281/zenodo.20137678)
+
 # mcmodel
 A lightweight base-R framework for constructing flexible, Gibbs-MH MCMC sampling algorithms.
 Rather than relying on external sampling algorithms and probabilistic coding languages, some researchers might prefer to write "homemade"
